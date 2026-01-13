@@ -6,11 +6,13 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./cat_feeder.db")
+IS_SQLITE = DATABASE_URL.startswith("sqlite")
 
-engine = create_engine(
-    DATABASE_URL,
-    connect_args={"check_same_thread": False},
-)
+engine_kwargs = {}
+if IS_SQLITE:
+    engine_kwargs["connect_args"] = {"check_same_thread": False}
+
+engine = create_engine(DATABASE_URL, **engine_kwargs)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
@@ -19,6 +21,8 @@ class Base(DeclarativeBase):
 
 
 def ensure_schema() -> None:
+    if engine.dialect.name != "sqlite":
+        return
     with engine.begin() as conn:
         columns = {row[1] for row in conn.execute(text("PRAGMA table_info(feeding_events)"))}
         if not columns:
