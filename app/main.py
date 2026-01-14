@@ -2528,7 +2528,7 @@ def pet_profile(
           function getCookie(name) {{
             const cookie = document.cookie
               .split("; ")
-              .find(row => row.startsWith(`${name}=`));
+              .find(row => row.startsWith(`${{name}}=`));
             return cookie ? cookie.split("=").slice(1).join("=") : "";
           }}
           function headers() {{
@@ -2797,7 +2797,7 @@ def pet_profile_edit(
           function getCookie(name) {{
             const cookie = document.cookie
               .split("; ")
-              .find(row => row.startsWith(`${name}=`));
+              .find(row => row.startsWith(`${{name}}=`));
             return cookie ? cookie.split("=").slice(1).join("=") : "";
           }}
           function headers() {{
