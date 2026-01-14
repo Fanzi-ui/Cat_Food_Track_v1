@@ -4,11 +4,12 @@ import base64
 import csv
 import io
 import os
+import secrets
 import smtplib
 from datetime import date, datetime, time, timedelta
 from email.message import EmailMessage
 
-from fastapi import Cookie, Depends, FastAPI, Header, HTTPException, Query, Response
+from fastapi import Cookie, Depends, FastAPI, Header, HTTPException, Query, Request, Response
 from fastapi.openapi.docs import get_redoc_html, get_swagger_ui_html
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from sqlalchemy import func, select
@@ -23,6 +24,10 @@ ensure_schema()
 app = FastAPI(title="Cat Feeder API", docs_url=None, redoc_url=None, openapi_url=None)
 
 DAILY_LIMIT = 3
+SESSION_MAX_AGE = 60 * 60 * 24 * 7
+CSRF_COOKIE_NAME = "csrf"
+CSRF_HEADER_NAME = "X-CSRF-Token"
+UNSAFE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 
 ASSET_DIR = os.path.join(os.path.dirname(__file__))
 TUXEDO_CAT_PATH = os.path.join(ASSET_DIR, "cute-tuxedo-cat-mascot-character-.png")
@@ -90,6 +95,7 @@ def get_user_from_session(db: Session, session_token: str | None) -> models.User
 
 
 def require_auth(
+    request: Request,
     db: Session = Depends(get_db),
     session_token: str | None = Cookie(default=None, alias="session"),
 ) -> models.User | None:
@@ -100,7 +106,32 @@ def require_auth(
         raise HTTPException(status_code=401, detail="Auth required.")
     if not user.is_active:
         raise HTTPException(status_code=403, detail="Account disabled.")
+    verify_csrf(request)
     return user
+
+
+def issue_csrf_cookie(response: Response) -> str:
+    token = secrets.token_urlsafe(32)
+    response.set_cookie(
+        CSRF_COOKIE_NAME,
+        token,
+        httponly=False,
+        samesite="lax",
+        path="/",
+        max_age=SESSION_MAX_AGE,
+    )
+    return token
+
+
+def verify_csrf(request: Request) -> None:
+    if request.method not in UNSAFE_METHODS:
+        return
+    cookie_token = request.cookies.get(CSRF_COOKIE_NAME)
+    header_token = request.headers.get(CSRF_HEADER_NAME)
+    if not cookie_token or not header_token:
+        raise HTTPException(status_code=403, detail="CSRF token missing.")
+    if not secrets.compare_digest(cookie_token, header_token):
+        raise HTTPException(status_code=403, detail="CSRF token invalid.")
 
 
 def parse_photo_base64(photo_base64: str) -> tuple[bytes, str]:
@@ -173,8 +204,9 @@ def signup(payload: schemas.SignupRequest, response: Response, db: Session = Dep
         httponly=True,
         samesite="lax",
         path="/",
-        max_age=60 * 60 * 24 * 7,
+        max_age=SESSION_MAX_AGE,
     )
+    issue_csrf_cookie(response)
     return schemas.LoginResponse(token=session.token)
 
 
@@ -780,8 +812,20 @@ def build_screen_html(initial_hash: str, mode: str) -> str:
           const activityList = document.getElementById("activity-list");
           let petPhotoData = null;
 
+          function getCookie(name) {
+            const cookie = document.cookie
+              .split("; ")
+              .find(row => row.startsWith(`${name}=`));
+            return cookie ? cookie.split("=").slice(1).join("=") : "";
+          }
+
           function headers() {
-            return { "Content-Type": "application/json" };
+            const headerMap = { "Content-Type": "application/json" };
+            const csrfToken = getCookie("csrf");
+            if (csrfToken) {
+              headerMap["X-CSRF-Token"] = csrfToken;
+            }
+            return headerMap;
           }
 
           function showPanel(panelId) {
@@ -1036,7 +1080,7 @@ def build_screen_html(initial_hash: str, mode: str) -> str:
             };
             const response = await fetch("/login", {
               method: "POST",
-              headers: { "Content-Type": "application/json" },
+              headers: headers(),
               credentials: "include",
               body: JSON.stringify(payload)
             });
@@ -1058,7 +1102,7 @@ def build_screen_html(initial_hash: str, mode: str) -> str:
             };
             const response = await fetch("/signup", {
               method: "POST",
-              headers: { "Content-Type": "application/json" },
+              headers: headers(),
               credentials: "include",
               body: JSON.stringify(payload)
             });
@@ -1074,7 +1118,7 @@ def build_screen_html(initial_hash: str, mode: str) -> str:
 
 
           logoutBtn.addEventListener("click", () => {
-            fetch("/logout", { method: "POST", credentials: "include" }).finally(() => {
+            fetch("/logout", { method: "POST", headers: headers(), credentials: "include" }).finally(() => {
               refreshAll();
             });
           });
@@ -1334,6 +1378,22 @@ def admin_settings(_: None = Depends(require_auth)):
           const auditList = document.getElementById("audit-list");
           const maintenanceStatus = document.getElementById("maintenance-status");
 
+          function getCookie(name) {
+            const cookie = document.cookie
+              .split("; ")
+              .find(row => row.startsWith(`${name}=`));
+            return cookie ? cookie.split("=").slice(1).join("=") : "";
+          }
+
+          function headers() {
+            const headerMap = { "Content-Type": "application/json" };
+            const csrfToken = getCookie("csrf");
+            if (csrfToken) {
+              headerMap["X-CSRF-Token"] = csrfToken;
+            }
+            return headerMap;
+          }
+
           function userRow(user) {
             const wrapper = document.createElement("div");
             wrapper.className = "user-row";
@@ -1465,6 +1525,7 @@ def admin_settings(_: None = Depends(require_auth)):
             }
             const response = await fetch(`/admin/pets/${petId}`, {
               method: "DELETE",
+              headers: headers(),
               credentials: "include"
             });
             if (response.ok) {
@@ -1482,7 +1543,7 @@ def admin_settings(_: None = Depends(require_auth)):
             };
             const response = await fetch(`/admin/pets/${petId}`, {
               method: "PATCH",
-              headers: { "Content-Type": "application/json" },
+              headers: headers(),
               credentials: "include",
               body: JSON.stringify(payload)
             });
@@ -1520,7 +1581,7 @@ def admin_settings(_: None = Depends(require_auth)):
           async function toggleUser(userId, isActive) {
             const response = await fetch(`/admin/users/${userId}`, {
               method: "PATCH",
-              headers: { "Content-Type": "application/json" },
+              headers: headers(),
               credentials: "include",
               body: JSON.stringify({ is_active: isActive })
             });
@@ -1539,7 +1600,7 @@ def admin_settings(_: None = Depends(require_auth)):
             }
             const response = await fetch(`/admin/users/${userId}/reset-password`, {
               method: "POST",
-              headers: { "Content-Type": "application/json" },
+              headers: headers(),
               credentials: "include",
               body: JSON.stringify({ new_password: newPassword })
             });
@@ -1554,7 +1615,7 @@ def admin_settings(_: None = Depends(require_auth)):
           async function updateUserEmail(userId, email, notifyEmail) {
             const response = await fetch(`/admin/users/${userId}`, {
               method: "PATCH",
-              headers: { "Content-Type": "application/json" },
+              headers: headers(),
               credentials: "include",
               body: JSON.stringify({
                 email: email ? email.trim() : null,
@@ -1579,7 +1640,7 @@ def admin_settings(_: None = Depends(require_auth)):
             };
             const response = await fetch("/change-password", {
               method: "POST",
-              headers: { "Content-Type": "application/json" },
+              headers: headers(),
               credentials: "include",
               body: JSON.stringify(payload)
             });
@@ -1600,6 +1661,7 @@ def admin_settings(_: None = Depends(require_auth)):
             maintenanceStatus.textContent = "Clearing...";
             const response = await fetch("/admin/maintenance/clear", {
               method: "POST",
+              headers: headers(),
               credentials: "include"
             });
             if (response.ok) {
@@ -1616,6 +1678,7 @@ def admin_settings(_: None = Depends(require_auth)):
             maintenanceStatus.textContent = "Seeding...";
             const response = await fetch("/admin/maintenance/seed", {
               method: "POST",
+              headers: headers(),
               credentials: "include"
             });
             if (response.ok) {
@@ -2007,7 +2070,6 @@ def export_stats(
 
 
 @app.post("/seed")
-@app.get("/seed")
 def seed(
     count: int = Query(SEED_EVENTS_DEFAULT, ge=1, le=20),
     grams: int = Query(SEED_GRAMS_DEFAULT, ge=1),
@@ -2051,8 +2113,9 @@ def login(payload: schemas.LoginRequest, response: Response, db: Session = Depen
         httponly=True,
         samesite="lax",
         path="/",
-        max_age=60 * 60 * 24 * 7,
+        max_age=SESSION_MAX_AGE,
     )
+    issue_csrf_cookie(response)
     return schemas.LoginResponse(token=session.token)
 
 
@@ -2075,16 +2138,19 @@ def change_password(
 
 @app.post("/logout")
 def logout(
+    request: Request,
     response: Response,
     session_token: str | None = Cookie(default=None, alias="session"),
     db: Session = Depends(get_db),
 ):
+    verify_csrf(request)
     if session_token:
         session = crud.get_session(db, session_token)
         if session:
             crud.create_audit_log(db, "logout", actor_user_id=session.user_id)
         crud.delete_session(db, session_token)
     response.delete_cookie("session", path="/")
+    response.delete_cookie(CSRF_COOKIE_NAME, path="/")
     return {"ok": True}
 
 
@@ -2459,8 +2525,19 @@ def pet_profile(
         <script>
           const feedList = document.getElementById("feed-list");
           const feedStatus = document.getElementById("feed-status");
+          function getCookie(name) {{
+            const cookie = document.cookie
+              .split("; ")
+              .find(row => row.startsWith(`${name}=`));
+            return cookie ? cookie.split("=").slice(1).join("=") : "";
+          }}
           function headers() {{
-            return {{ "Content-Type": "application/json" }};
+            const headerMap = {{ "Content-Type": "application/json" }};
+            const csrfToken = getCookie("csrf");
+            if (csrfToken) {{
+              headerMap["X-CSRF-Token"] = csrfToken;
+            }}
+            return headerMap;
           }}
 
           async function loadFeedings() {{
@@ -2717,8 +2794,19 @@ def pet_profile_edit(
           const statusEl = document.getElementById("status");
           const photoFile = document.getElementById("photo_file");
           let photoData = null;
+          function getCookie(name) {{
+            const cookie = document.cookie
+              .split("; ")
+              .find(row => row.startsWith(`${name}=`));
+            return cookie ? cookie.split("=").slice(1).join("=") : "";
+          }}
           function headers() {{
-            return {{ "Content-Type": "application/json" }};
+            const headerMap = {{ "Content-Type": "application/json" }};
+            const csrfToken = getCookie("csrf");
+            if (csrfToken) {{
+              headerMap["X-CSRF-Token"] = csrfToken;
+            }}
+            return headerMap;
           }}
           photoFile.addEventListener("change", () => {{
             const file = photoFile.files[0];

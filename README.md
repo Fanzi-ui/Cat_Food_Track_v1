@@ -52,6 +52,7 @@ pytest
 ## Notes
 
 - This project uses SQLite by default (`cat_feeder.db`).
+- To use Postgres, set `DATABASE_URL` like `postgresql+psycopg2://user:pass@host:5432/dbname`.
 - For iPhone home-screen shortcut, open `/screen` in Safari and tap “Add to Home Screen”.
 
 ## Security notes
