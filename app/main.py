@@ -7,6 +7,7 @@ import os
 import logging
 import secrets
 import smtplib
+import threading
 import time as time_module
 from datetime import date, datetime, time, timedelta
 from email.message import EmailMessage
@@ -33,9 +34,12 @@ UNSAFE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 
 ASSET_DIR = os.path.join(os.path.dirname(__file__))
 TUXEDO_CAT_PATH = os.path.join(ASSET_DIR, "cute-tuxedo-cat-mascot-character-.png")
+SW_PATH = os.path.join(ASSET_DIR, "sw.js")
 DB_INIT_RETRIES = int(os.getenv("DB_INIT_RETRIES", "5"))
 DB_INIT_DELAY_SECONDS = float(os.getenv("DB_INIT_DELAY_SECONDS", "2.0"))
 DB_INIT_STRICT = os.getenv("DB_INIT_STRICT", "0") == "1"
+_schema_lock = threading.Lock()
+_schema_ready = False
 
 
 def init_db_schema() -> None:
@@ -57,6 +61,8 @@ def init_db_schema() -> None:
                 break
     if DB_INIT_STRICT and last_error:
         raise last_error
+    global _schema_ready
+    _schema_ready = True
 
 
 def send_feeding_email(pet: models.Pet, event: models.FeedingEvent, recipients: list[str]) -> None:
@@ -104,6 +110,11 @@ SEED_EVENTS_DEFAULT = 2
 
 
 def get_db():
+    global _schema_ready
+    if not _schema_ready:
+        with _schema_lock:
+            if not _schema_ready:
+                init_db_schema()
     db = SessionLocal()
     try:
         yield db
@@ -192,6 +203,13 @@ def tuxedo_cat_asset():
     if not os.path.exists(TUXEDO_CAT_PATH):
         raise HTTPException(status_code=404, detail="Asset not found.")
     return FileResponse(TUXEDO_CAT_PATH, media_type="image/png")
+
+
+@app.get("/sw.js")
+def service_worker():
+    if not os.path.exists(SW_PATH):
+        raise HTTPException(status_code=404, detail="Service worker not found.")
+    return FileResponse(SW_PATH, media_type="application/javascript")
 
 
 @app.get("/manifest.webmanifest")
@@ -1191,6 +1209,13 @@ def build_screen_html(initial_hash: str, mode: str) -> str:
             tipIndex = (tipIndex + 1) % tips.length;
             tipText.textContent = tips[tipIndex];
           }, 10000);
+        </script>
+        <script>
+          if ("serviceWorker" in navigator) {{
+            window.addEventListener("load", () => {{
+              navigator.serviceWorker.register("/sw.js").catch(() => {{}});
+            }});
+          }}
         </script>
       </body>
     </html>
@@ -2635,6 +2660,13 @@ def pet_profile(
           document.getElementById("fed_at").value =
             new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0,16);
         </script>
+        <script>
+          if ("serviceWorker" in navigator) {{
+            window.addEventListener("load", () => {{
+              navigator.serviceWorker.register("/sw.js").catch(() => {{}});
+            }});
+          }}
+        </script>
       </body>
     </html>
     """
@@ -2909,6 +2941,13 @@ def pet_profile_edit(
           const img = document.getElementById("pet-photo");
           if (img && img.dataset.photo === "blob") {{
             img.src = "/pets/{pet_id}/photo";
+          }}
+        </script>
+        <script>
+          if ("serviceWorker" in navigator) {{
+            window.addEventListener("load", () => {{
+              navigator.serviceWorker.register("/sw.js").catch(() => {{}});
+            }});
           }}
         </script>
       </body>

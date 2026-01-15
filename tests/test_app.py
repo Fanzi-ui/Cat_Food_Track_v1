@@ -21,6 +21,11 @@ def build_client(tmp_path: str) -> TestClient:
     return TestClient(main.app)
 
 
+def auth_headers(client: TestClient) -> dict[str, str]:
+    token = client.cookies.get("csrf")
+    return {"X-CSRF-Token": token} if token else {}
+
+
 def test_health(tmp_path):
     client = build_client(tmp_path)
     response = client.get("/health")
@@ -44,6 +49,7 @@ def test_signup_login_pet_feeding_flow(tmp_path):
             "diet_type": "Whiskas Poultry",
             "age_years": 2,
         },
+        headers=auth_headers(client),
     )
     assert pet.status_code == 200
     pet_id = pet.json()["id"]
@@ -57,6 +63,7 @@ def test_signup_login_pet_feeding_flow(tmp_path):
             "fed_at": fed_at,
             "diet_type": "Whiskas Poultry",
         },
+        headers=auth_headers(client),
     )
     assert feeding.status_code == 200
 
