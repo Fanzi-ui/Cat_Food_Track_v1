@@ -4,8 +4,10 @@ import base64
 import csv
 import io
 import os
+import logging
 import secrets
 import smtplib
+import time as time_module
 from datetime import date, datetime, time, timedelta
 from email.message import EmailMessage
 
@@ -13,15 +15,15 @@ from fastapi import Cookie, Depends, FastAPI, Header, HTTPException, Query, Requ
 from fastapi.openapi.docs import get_redoc_html, get_swagger_ui_html
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from sqlalchemy import func, select
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
 from . import crud, models, schemas
 from .database import SessionLocal, engine, ensure_schema
 
-models.Base.metadata.create_all(bind=engine)
-ensure_schema()
-
 app = FastAPI(title="Cat Feeder API", docs_url=None, redoc_url=None, openapi_url=None)
+
+logger = logging.getLogger(__name__)
 
 DAILY_LIMIT = 3
 SESSION_MAX_AGE = 60 * 60 * 24 * 7
@@ -31,6 +33,30 @@ UNSAFE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 
 ASSET_DIR = os.path.join(os.path.dirname(__file__))
 TUXEDO_CAT_PATH = os.path.join(ASSET_DIR, "cute-tuxedo-cat-mascot-character-.png")
+DB_INIT_RETRIES = int(os.getenv("DB_INIT_RETRIES", "5"))
+DB_INIT_DELAY_SECONDS = float(os.getenv("DB_INIT_DELAY_SECONDS", "2.0"))
+DB_INIT_STRICT = os.getenv("DB_INIT_STRICT", "0") == "1"
+
+
+def init_db_schema() -> None:
+    attempts = max(DB_INIT_RETRIES, 1)
+    last_error: Exception | None = None
+    for attempt in range(1, attempts + 1):
+        try:
+            models.Base.metadata.create_all(bind=engine)
+            ensure_schema()
+            return
+        except OperationalError as exc:
+            last_error = exc
+            logger.warning(
+                "Database init failed (attempt %s/%s).", attempt, attempts, exc_info=exc
+            )
+            if attempt < attempts:
+                time_module.sleep(DB_INIT_DELAY_SECONDS)
+            else:
+                break
+    if DB_INIT_STRICT and last_error:
+        raise last_error
 
 
 def send_feeding_email(pet: models.Pet, event: models.FeedingEvent, recipients: list[str]) -> None:
@@ -149,6 +175,11 @@ def parse_photo_base64(photo_base64: str) -> tuple[bytes, str]:
     if len(data) > 2_000_000:
         raise HTTPException(status_code=413, detail="Image too large (max 2MB).")
     return data, mime
+
+
+@app.on_event("startup")
+def startup_db() -> None:
+    init_db_schema()
 
 
 @app.get("/health")
