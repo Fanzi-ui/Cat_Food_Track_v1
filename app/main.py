@@ -3,53 +3,43 @@ from __future__ import annotations
 import base64
 import csv
 import io
-import os
 import logging
+import os
 import secrets
-import json
-import smtplib
 import threading
 import time as time_module
 from datetime import date, datetime, time, timedelta
-from email.message import EmailMessage
 
 from fastapi import Cookie, Depends, FastAPI, Header, HTTPException, Query, Request, Response
 from fastapi.openapi.docs import get_redoc_html, get_swagger_ui_html
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
-from reportlab.lib.pagesizes import letter
-from reportlab.pdfgen import canvas
 from sqlalchemy import func, select
-try:
-    from pywebpush import WebPushException, webpush
-except ImportError:  # pragma: no cover - optional dependency
-    WebPushException = Exception
-    webpush = None
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
 from . import crud, models, schemas
+from .config import (
+    APP_VERSION,
+    CSRF_COOKIE_NAME,
+    CSRF_HEADER_NAME,
+    DAILY_LIMIT,
+    LOW_STOCK_THRESHOLD,
+    SACHET_SIZE_GRAMS,
+    SEED_DIET_DEFAULT,
+    SEED_EVENTS_DEFAULT,
+    SEED_GRAMS_DEFAULT,
+    SESSION_MAX_AGE,
+    UNSAFE_METHODS,
+)
 from .database import SessionLocal, engine, ensure_schema
+from .services import inventory as inventory_service
+from .services import notifications
+from .services import reports
 
 app = FastAPI(title="Cat Feeder API", docs_url=None, redoc_url=None, openapi_url=None)
 
 logger = logging.getLogger(__name__)
-
-DAILY_LIMIT = 3
-SESSION_MAX_AGE = 60 * 60 * 24 * 7
-CSRF_COOKIE_NAME = "csrf"
-CSRF_HEADER_NAME = "X-CSRF-Token"
-UNSAFE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
-APP_VERSION = os.getenv("APP_VERSION", "V.0.2")
-SACHET_SIZE_GRAMS = 85
-LOW_STOCK_THRESHOLD = int(os.getenv("LOW_STOCK_THRESHOLD", "5"))
-FOOD_OPTIONS = [
-    "Whiskas Poultry",
-    "Whiskas Tuna",
-    "Royal Canin",
-    "Purina One",
-    "Hill's Science Diet",
-]
 
 ASSET_DIR = os.path.join(os.path.dirname(__file__))
 TEMPLATE_DIR = os.path.join(ASSET_DIR, "templates")
@@ -88,148 +78,6 @@ def init_db_schema() -> None:
     _schema_ready = True
 
 
-def send_smtp_email(
-    host: str,
-    port: int,
-    user: str,
-    password: str,
-    from_email: str,
-    recipients: list[str],
-    subject: str,
-    body: str,
-) -> None:
-    if not host or not user or not password or not from_email or not recipients:
-        return
-    message = EmailMessage()
-    message["Subject"] = subject
-    message["From"] = from_email
-    message["To"] = ", ".join(sorted(set(recipients)))
-    message.set_content(body)
-    try:
-        if port == 465:
-            with smtplib.SMTP_SSL(host, port, timeout=10) as server:
-                server.login(user, password)
-                server.send_message(message)
-            return
-        with smtplib.SMTP(host, port, timeout=10) as server:
-            server.ehlo()
-            server.starttls()
-            server.login(user, password)
-            server.send_message(message)
-    except Exception:
-        return
-
-
-def send_feeding_notifications(pet: models.Pet, event: models.FeedingEvent, configs: list[dict]) -> None:
-    if not configs:
-        return
-    diet = event.diet_type or pet.diet_type or "Unknown"
-    subject = f"Feeding logged: {pet.name}"
-    body = (
-        f"Pet: {pet.name}\n"
-        f"Amount: {event.amount_grams}g\n"
-        f"Diet: {diet}\n"
-        f"Fed at (UTC): {event.fed_at.isoformat()}\n"
-    )
-    for config in configs:
-        host = str(config.get("host") or "")
-        port = int(config.get("port") or 587)
-        user = str(config.get("user") or "")
-        password = str(config.get("password") or "")
-        from_email = str(config.get("from_email") or "")
-        recipients = list(config.get("recipients") or [])
-        send_smtp_email(host, port, user, password, from_email, recipients, subject, body)
-
-
-def send_push_notifications(
-    db: Session,
-    pet: models.Pet,
-    event: models.FeedingEvent,
-) -> None:
-    if webpush is None:
-        return
-    vapid_public = os.getenv("VAPID_PUBLIC_KEY")
-    vapid_private = os.getenv("VAPID_PRIVATE_KEY")
-    vapid_subject = os.getenv("VAPID_SUBJECT", "mailto:admin@example.com")
-    if not vapid_public or not vapid_private:
-        return
-    diet = event.diet_type or pet.diet_type or "Unknown"
-    payload = {
-        "title": "Feeding logged",
-        "body": f"{pet.name} - {event.amount_grams}g - {diet}",
-        "url": f"/pets/{pet.id}/profile",
-    }
-    subscriptions = crud.list_push_subscriptions(db)
-    for sub in subscriptions:
-        try:
-            webpush(
-                subscription_info={
-                    "endpoint": sub.endpoint,
-                    "keys": {"p256dh": sub.p256dh, "auth": sub.auth},
-                },
-                data=json.dumps(payload),
-                vapid_private_key=vapid_private,
-                vapid_claims={"sub": vapid_subject},
-            )
-        except WebPushException as exc:
-            if exc.response and exc.response.status_code in {404, 410}:
-                crud.delete_push_subscription(db, sub.endpoint)
-            continue
-
-
-def send_push_message(db: Session, title: str, body: str, url: str) -> None:
-    if webpush is None:
-        return
-    vapid_public = os.getenv("VAPID_PUBLIC_KEY")
-    vapid_private = os.getenv("VAPID_PRIVATE_KEY")
-    vapid_subject = os.getenv("VAPID_SUBJECT", "mailto:admin@example.com")
-    if not vapid_public or not vapid_private:
-        return
-    payload = {"title": title, "body": body, "url": url}
-    subscriptions = crud.list_push_subscriptions(db)
-    for sub in subscriptions:
-        try:
-            webpush(
-                subscription_info={
-                    "endpoint": sub.endpoint,
-                    "keys": {"p256dh": sub.p256dh, "auth": sub.auth},
-                },
-                data=json.dumps(payload),
-                vapid_private_key=vapid_private,
-                vapid_claims={"sub": vapid_subject},
-            )
-        except WebPushException as exc:
-            if exc.response and exc.response.status_code in {404, 410}:
-                crud.delete_push_subscription(db, sub.endpoint)
-            continue
-
-
-def handle_inventory_after_feeding(
-    db: Session,
-    pet: models.Pet,
-    amount_grams: int,
-) -> None:
-    inventory = crud.get_pet_inventory(db, pet.id)
-    if not inventory:
-        return
-    previous = inventory.sachet_count
-    updated = crud.apply_inventory_consumption(db, pet.id, amount_grams)
-    if not updated:
-        return
-    if previous > LOW_STOCK_THRESHOLD and updated.sachet_count <= LOW_STOCK_THRESHOLD:
-        detail = f"{pet.name} low stock: {updated.sachet_count} sachets left"
-        crud.create_audit_log(db, "low_stock", details=detail)
-        send_push_message(
-            db,
-            "Low food stock",
-            detail,
-            f"/pets/{pet.id}/profile",
-        )
-
-
-SEED_DIET_DEFAULT = "Whiskas Poultry"
-SEED_GRAMS_DEFAULT = 85
-SEED_EVENTS_DEFAULT = 2
 
 
 def get_db():
@@ -434,9 +282,9 @@ def log_feeding(
     if event.diet_type:
         detail += f" - {event.diet_type}"
     crud.create_audit_log(db, "feeding_logged", details=detail)
-    handle_inventory_after_feeding(db, pet, event.amount_grams)
-    send_feeding_notifications(pet, event, crud.list_notify_configs(db))
-    send_push_notifications(db, pet, event)
+    inventory_service.handle_inventory_after_feeding(db, pet, event.amount_grams)
+    notifications.send_feeding_notifications(pet, event, crud.list_notify_configs(db))
+    notifications.send_push_notifications(db, pet, event)
     return event
 
 
@@ -478,15 +326,6 @@ def render_template(name: str, replacements: dict[str, str] | None = None) -> st
     return html
 
 
-def build_food_options(selected: str | None = None) -> str:
-    options = FOOD_OPTIONS[:]
-    if selected and selected not in options:
-        options.insert(0, selected)
-    selected_value = selected or ""
-    return "\n".join(
-        f'<option value="{item}"{" selected" if item == selected_value else ""}>{item}</option>'
-        for item in options
-    )
 
 
 def build_screen_html(initial_hash: str, mode: str) -> str:
@@ -1114,9 +953,9 @@ def device_feed(
     if event.diet_type:
         detail += f" - {event.diet_type}"
     crud.create_audit_log(db, "feeding_logged", details=detail)
-    handle_inventory_after_feeding(db, pet, event.amount_grams)
-    send_feeding_notifications(pet, event, crud.list_notify_configs(db))
-    send_push_notifications(db, pet, event)
+    inventory_service.handle_inventory_after_feeding(db, pet, event.amount_grams)
+    notifications.send_feeding_notifications(pet, event, crud.list_notify_configs(db))
+    notifications.send_push_notifications(db, pet, event)
     return event
 
 
@@ -1355,79 +1194,17 @@ def pet_report_pdf(
     feedings = crud.list_feedings_range(db, pet_id, start_dt, end_dt)
     weights = crud.list_weight_entries_range(db, pet_id, start_dt, end_dt)
     inventory = crud.get_pet_inventory(db, pet_id)
-    buffer = io.BytesIO()
-    pdf = canvas.Canvas(buffer, pagesize=letter)
-    _, height = letter
-    y = height - 40
-    pdf.setFont("Helvetica-Bold", 16)
-    pdf.drawString(40, y, f"{pet.name} Report")
-    y -= 18
-    pdf.setFont("Helvetica", 10)
-    end_display = (end_dt - timedelta(days=1)).date()
-    date_range = f"{start_dt.date().isoformat()} to {end_display.isoformat()}"
-    pdf.drawString(40, y, f"Date range: {date_range}")
-    y -= 16
-    pdf.drawString(40, y, f"Generated: {datetime.utcnow().isoformat(timespec='minutes')} UTC")
-    y -= 22
-
-    pdf.setFont("Helvetica-Bold", 12)
-    pdf.drawString(40, y, "Inventory")
-    y -= 14
-    pdf.setFont("Helvetica", 10)
-    if inventory:
-        pdf.drawString(
-            40,
-            y,
-            f"{inventory.food_name} - {inventory.sachet_count} sachets "
-            f"({inventory.remaining_grams}g remaining)",
-        )
-    else:
-        pdf.drawString(40, y, "No inventory set.")
-    y -= 22
-
-    pdf.setFont("Helvetica-Bold", 12)
-    pdf.drawString(40, y, "Weight Entries")
-    y -= 14
-    pdf.setFont("Helvetica", 10)
-    if not weights:
-        pdf.drawString(40, y, "No weight entries.")
-        y -= 16
-    else:
-        for entry in weights:
-            if y < 80:
-                pdf.showPage()
-                y = height - 40
-                pdf.setFont("Helvetica", 10)
-            pdf.drawString(40, y, f"{entry.recorded_at.isoformat()} - {entry.weight_kg}kg")
-            y -= 14
-    y -= 8
-
-    pdf.setFont("Helvetica-Bold", 12)
-    pdf.drawString(40, y, "Feedings")
-    y -= 14
-    pdf.setFont("Helvetica", 10)
-    if not feedings:
-        pdf.drawString(40, y, "No feedings.")
-        y -= 16
-    else:
-        for entry in feedings:
-            if y < 80:
-                pdf.showPage()
-                y = height - 40
-                pdf.setFont("Helvetica", 10)
-            diet = f" ({entry.diet_type})" if entry.diet_type else ""
-            pdf.drawString(
-                40,
-                y,
-                f"{entry.fed_at.isoformat()} - {entry.amount_grams}g{diet}",
-            )
-            y -= 14
-    pdf.showPage()
-    pdf.save()
-    buffer.seek(0)
+    pdf_bytes = reports.build_pet_report_pdf(
+        pet=pet,
+        feedings=feedings,
+        weights=weights,
+        inventory=inventory,
+        start_dt=start_dt,
+        end_dt=end_dt,
+    )
     filename = f"{pet.name.replace(' ', '_').lower()}_report.pdf"
     headers = {"Content-Disposition": f"attachment; filename={filename}"}
-    return Response(content=buffer.getvalue(), media_type="application/pdf", headers=headers)
+    return Response(content=pdf_bytes, media_type="application/pdf", headers=headers)
 
 
 @app.get("/pets/{pet_id}/profile", response_class=HTMLResponse)
@@ -1489,7 +1266,7 @@ def pet_profile(
             "__INVENTORY_SACHETS__": str(inventory_sachets),
             "__INVENTORY_REMAINING__": str(inventory_remaining),
             "__INVENTORY_UPDATED__": inventory_updated,
-            "__FOOD_OPTIONS__": build_food_options(inventory_food),
+            "__FOOD_OPTIONS__": inventory_service.build_food_options(inventory_food),
         },
     )
     return HTMLResponse(content=html)
