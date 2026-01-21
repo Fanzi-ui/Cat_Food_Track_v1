@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Pets</title>
+    <link rel="stylesheet" href="/static/pet_list.css">
+  </head>
+  <body>
+    <div class="shell">
+      <div class="top-nav">
+        <a href="/screen">Dashboard</a>
+        <a href="/screen/status">Status</a>
+        <a href="/pets/list">Pets</a>
+        <a href="/pets/new">Add Pet</a>
+        <a href="/admin">Admin</a>
+      </div>
+      <div class="header">
+        <div>
+          <h1>Pet Profiles</h1>
+          <div class="note">Tap a pet to open its profile page.</div>
+        </div>
+        <a class="primary-link" href="/pets/new">Add New Pet</a>
+      </div>
+      <div class="card">
+        <label for="pet-search">Search pets</label>
+        <input id="pet-search" type="text" placeholder="Type a name">
+      </div>
+      <ul class="pet-list" id="pet-list"></ul>
+      <div class="status" id="pet-status" style="display: none;"></div>
+    </div>
+    <script src="/static/pet_list.js" defer></script>
+    <script>
+      if ("serviceWorker" in navigator) {
+        window.addEventListener("load", () => {
+          navigator.serviceWorker.register("/sw.js").catch(() => {});
+        });
+      }
+    </script>
+  </body>
+</html>

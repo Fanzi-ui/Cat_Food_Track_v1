@@ -122,6 +122,13 @@ class AdminUserOut(BaseModel):
     is_active: bool
     email: Optional[str] = None
     notify_email: bool
+    notify_email_1: Optional[str] = None
+    notify_email_2: Optional[str] = None
+    notify_email_3: Optional[str] = None
+    smtp_host: Optional[str] = None
+    smtp_port: Optional[int] = None
+    smtp_user: Optional[str] = None
+    smtp_from: Optional[str] = None
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
@@ -131,6 +138,14 @@ class AdminUserUpdate(BaseModel):
     is_active: Optional[bool] = None
     email: Optional[str] = None
     notify_email: Optional[bool] = None
+    notify_email_1: Optional[str] = None
+    notify_email_2: Optional[str] = None
+    notify_email_3: Optional[str] = None
+    smtp_host: Optional[str] = None
+    smtp_port: Optional[int] = None
+    smtp_user: Optional[str] = None
+    smtp_pass: Optional[str] = None
+    smtp_from: Optional[str] = None
 
 
 class AdminResetPasswordRequest(BaseModel):
@@ -164,3 +179,13 @@ class AdminPetOut(BaseModel):
 class AdminPetUpdate(BaseModel):
     daily_limit_count: Optional[int] = Field(default=None, ge=1)
     daily_grams_limit: Optional[int] = Field(default=None, ge=1)
+
+
+class PushKeys(BaseModel):
+    p256dh: str
+    auth: str
+
+
+class PushSubscriptionIn(BaseModel):
+    endpoint: str
+    keys: PushKeys

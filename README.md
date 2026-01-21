@@ -30,7 +30,15 @@ Open `http://<ip>:8000/screen`.
 
 ## Email notifications (optional)
 
-Set env vars (see `.env.example`) and opt-in per admin in `/admin`.
+Set up SMTP per admin in `/admin` with:
+- SMTP host, port, username, password, from address
+- Up to 3 recipient emails (the first is required to enable notifications)
+
+## Phone notifications (optional)
+
+Web push is supported. Set `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, and `VAPID_SUBJECT`
+in your environment (see `.env.example`). Then in `/screen` use the “Enable notifications”
+button. On iPhone, add the app to the Home Screen first (iOS 16.4+).
 
 ## Admin tools
 
@@ -54,6 +62,11 @@ pytest
 - This project uses SQLite by default (`cat_feeder.db`).
 - To use Postgres, set `DATABASE_URL` like `postgresql+psycopg2://user:pass@host:5432/dbname`.
 - For iPhone home-screen shortcut, open `/screen` in Safari and tap “Add to Home Screen”.
+## Railway + local dev
+
+For Railway, set `DATABASE_URL` in the Railway service environment variables. Railway internal
+URLs (like `postgres.railway.internal`) only resolve inside Railway, so keep local dev/testing
+on SQLite unless you use a public Railway connection string.
 
 ## Security notes
 

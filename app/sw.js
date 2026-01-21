@@ -142,3 +142,39 @@ self.addEventListener("fetch", (event) => {
   }
   event.respondWith(networkFirst(request));
 });
+
+self.addEventListener("push", (event) => {
+  let payload = { title: "Cat Feeder", body: "New feeding logged.", url: "/screen" };
+  if (event.data) {
+    try {
+      payload = JSON.parse(event.data.text());
+    } catch (err) {
+      payload.body = event.data.text();
+    }
+  }
+  const options = {
+    body: payload.body || "New feeding logged.",
+    icon: "/assets/tuxedo-cat.png",
+    badge: "/assets/tuxedo-cat.png",
+    data: { url: payload.url || "/screen" },
+  };
+  event.waitUntil(self.registration.showNotification(payload.title || "Cat Feeder", options));
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const targetUrl = event.notification.data?.url || "/screen";
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientsArr) => {
+      for (const client of clientsArr) {
+        if ("focus" in client && client.url.includes(targetUrl)) {
+          return client.focus();
+        }
+      }
+      if (self.clients.openWindow) {
+        return self.clients.openWindow(targetUrl);
+      }
+      return null;
+    })
+  );
+});

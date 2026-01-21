@@ -18,6 +18,14 @@ class User(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     email: Mapped[str | None] = mapped_column(String, nullable=True)
     notify_email: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    notify_email_1: Mapped[str | None] = mapped_column(String, nullable=True)
+    notify_email_2: Mapped[str | None] = mapped_column(String, nullable=True)
+    notify_email_3: Mapped[str | None] = mapped_column(String, nullable=True)
+    smtp_host: Mapped[str | None] = mapped_column(String, nullable=True)
+    smtp_port: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    smtp_user: Mapped[str | None] = mapped_column(String, nullable=True)
+    smtp_pass: Mapped[str | None] = mapped_column(String, nullable=True)
+    smtp_from: Mapped[str | None] = mapped_column(String, nullable=True)
 
 
 class AuthToken(Base):
@@ -74,3 +82,15 @@ class FeedingEvent(Base):
     amount_grams: Mapped[int] = mapped_column(Integer, nullable=False)
     diet_type: Mapped[str | None] = mapped_column(String, nullable=True)
     pet_id: Mapped[int | None] = mapped_column(ForeignKey("pets.id"), nullable=True)
+
+
+class PushSubscription(Base):
+    __tablename__ = "push_subscriptions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    endpoint: Mapped[str] = mapped_column(String, unique=True, nullable=False)
+    p256dh: Mapped[str] = mapped_column(String, nullable=False)
+    auth: Mapped[str] = mapped_column(String, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)

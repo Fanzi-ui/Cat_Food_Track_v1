@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Edit Pet</title>
+    <link rel="stylesheet" href="/static/pet_edit.css">
+  </head>
+  <body data-pet-id="__PET_ID__" data-pet-name="__PET_NAME__">
+    <div class="shell">
+      <div class="top-nav">
+        <a href="/pets/__PET_ID__/profile">Back</a>
+        <a href="/screen">Dashboard</a>
+        <a href="/screen/status">Status</a>
+        <a href="/pets/list">Pets</a>
+        <a href="/pets/new">Add Pet</a>
+        <a href="/admin">Admin</a>
+      </div>
+      <h1>Edit __PET_NAME__</h1>
+      __PHOTO_HTML__
+      <div class="card">
+        <div class="note">Update details or delete the pet.</div>
+        <form id="edit-form">
+          <div>
+            <label for="name">Name</label>
+            <input id="name" value="__PET_NAME__">
+          </div>
+          <div>
+            <label for="breed">Breed</label>
+            <select id="breed">
+              __BREED_OPTIONS__
+            </select>
+          </div>
+          <div>
+            <label for="age_years">Age (years)</label>
+            <input id="age_years" type="number" min="0" value="__PET_AGE__">
+          </div>
+          <div>
+            <label for="sex">Sex</label>
+            <input id="sex" value="__PET_SEX__">
+          </div>
+          <div>
+            <label for="estimated_weight_kg">Estimated Weight (kg)</label>
+            <input
+              id="estimated_weight_kg"
+              type="number"
+              step="0.1"
+              min="0"
+              value="__PET_WEIGHT__"
+            >
+          </div>
+          <div>
+            <label for="diet_type">Diet Type</label>
+            <input id="diet_type" value="__PET_DIET__">
+          </div>
+          <div>
+            <label for="photo_url">Photo URL</label>
+            <input id="photo_url" value="__PET_PHOTO_URL__">
+          </div>
+          <div>
+            <label for="photo_file">Photo (from phone)</label>
+            <input id="photo_file" type="file" accept="image/*">
+          </div>
+          <button type="button" class="secondary" id="remove-photo-btn">Remove Photo</button>
+          <div>
+            <label for="last_vet_visit">Last Vet Visit</label>
+            <input id="last_vet_visit" type="date" value="__PET_VET__">
+          </div>
+          <div class="actions">
+            <button type="submit">Save</button>
+            <button type="button" class="danger" id="delete-btn">Delete</button>
+          </div>
+          <div class="status" id="status" style="display: none;"></div>
+        </form>
+      </div>
+    </div>
+    <script src="/static/pet_edit.js" defer></script>
+    <script>
+      if ("serviceWorker" in navigator) {
+        window.addEventListener("load", () => {
+          navigator.serviceWorker.register("/sw.js").catch(() => {});
+        });
+      }
+    </script>
+  </body>
+</html>

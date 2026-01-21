@@ -232,23 +232,116 @@ def update_user_email_settings(
     user: models.User,
     email: str | None,
     notify_email: bool | None,
+    notify_email_1: str | None = None,
+    notify_email_2: str | None = None,
+    notify_email_3: str | None = None,
+    smtp_host: str | None = None,
+    smtp_port: int | None = None,
+    smtp_user: str | None = None,
+    smtp_pass: str | None = None,
+    smtp_from: str | None = None,
 ) -> models.User:
     user.email = email
     if notify_email is not None:
         user.notify_email = notify_email
+    if notify_email_1 is not None:
+        user.notify_email_1 = notify_email_1
+    if notify_email_2 is not None:
+        user.notify_email_2 = notify_email_2
+    if notify_email_3 is not None:
+        user.notify_email_3 = notify_email_3
+    if smtp_host is not None:
+        user.smtp_host = smtp_host
+    if smtp_port is not None:
+        user.smtp_port = smtp_port
+    if smtp_user is not None:
+        user.smtp_user = smtp_user
+    if smtp_pass is not None:
+        user.smtp_pass = smtp_pass
+    if smtp_from is not None:
+        user.smtp_from = smtp_from
     db.add(user)
     db.commit()
     db.refresh(user)
     return user
 
 
-def list_notify_emails(db: Session) -> list[str]:
+def list_notify_configs(db: Session) -> list[dict[str, str | int | list[str]]]:
     rows = db.execute(
-        select(models.User.email)
-        .where(models.User.notify_email.is_(True))
-        .where(models.User.email.is_not(None))
+        select(
+            models.User.smtp_host,
+            models.User.smtp_port,
+            models.User.smtp_user,
+            models.User.smtp_pass,
+            models.User.smtp_from,
+            models.User.notify_email_1,
+            models.User.notify_email_2,
+            models.User.notify_email_3,
+        ).where(models.User.notify_email.is_(True))
     ).all()
-    return [row[0] for row in rows if row[0]]
+    configs: list[dict[str, str | int | list[str]]] = []
+    for host, port, user, password, from_email, email_1, email_2, email_3 in rows:
+        recipients = [email for email in (email_1, email_2, email_3) if email]
+        if not recipients or not host or not user or not password or not from_email:
+            continue
+        configs.append(
+            {
+                "host": host,
+                "port": int(port or 587),
+                "user": user,
+                "password": password,
+                "from_email": from_email,
+                "recipients": recipients,
+            }
+        )
+    return configs
+
+
+def upsert_push_subscription(
+    db: Session,
+    user_id: int,
+    endpoint: str,
+    p256dh: str,
+    auth: str,
+) -> models.PushSubscription:
+    existing = db.execute(
+        select(models.PushSubscription).where(models.PushSubscription.endpoint == endpoint)
+    ).scalar_one_or_none()
+    now = datetime.utcnow()
+    if existing:
+        existing.user_id = user_id
+        existing.p256dh = p256dh
+        existing.auth = auth
+        existing.updated_at = now
+        db.add(existing)
+        db.commit()
+        db.refresh(existing)
+        return existing
+    record = models.PushSubscription(
+        user_id=user_id,
+        endpoint=endpoint,
+        p256dh=p256dh,
+        auth=auth,
+        created_at=now,
+        updated_at=now,
+    )
+    db.add(record)
+    db.commit()
+    db.refresh(record)
+    return record
+
+
+def delete_push_subscription(db: Session, endpoint: str, user_id: int | None = None) -> bool:
+    query = db.query(models.PushSubscription).filter(models.PushSubscription.endpoint == endpoint)
+    if user_id is not None:
+        query = query.filter(models.PushSubscription.user_id == user_id)
+    deleted = query.delete()
+    db.commit()
+    return bool(deleted)
+
+
+def list_push_subscriptions(db: Session) -> list[models.PushSubscription]:
+    return list(db.execute(select(models.PushSubscription)).scalars().all())
 
 
 def create_audit_log(

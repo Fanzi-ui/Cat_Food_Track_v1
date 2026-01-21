@@ -1,0 +1,99 @@
+html, body, #app { height: 100%; }
+body {
+  margin: 0;
+  font-family: "Optima", "Gill Sans", "Candara", sans-serif;
+  background: #f8f2e9;
+  color: #1f1b16;
+}
+.shell {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 1.5rem 1rem 2.5rem;
+}
+.top-nav {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+  flex-wrap: wrap;
+}
+.top-nav a {
+  text-decoration: none;
+  font-size: 0.85rem;
+  background: #fffaf4;
+  color: #1f1b16;
+  padding: 0.4rem 0.75rem;
+  border-radius: 999px;
+  border: 1px solid #e4d3c3;
+}
+.card {
+  background: #fffdf9;
+  border-radius: 18px;
+  padding: 1.2rem;
+  box-shadow: 0 10px 30px rgba(40, 30, 24, 0.08);
+  margin-top: 1rem;
+}
+.pet-photo {
+  width: 180px;
+  height: 180px;
+  border-radius: 50%;
+  border: 1px solid #e4d3c3;
+  margin-top: 0.75rem;
+  object-fit: cover;
+}
+label { font-weight: 600; }
+input, select {
+  width: 100%;
+  padding: 0.6rem 0.75rem;
+  border-radius: 12px;
+  border: 1px solid #d8c8b6;
+  background: #fffaf4;
+}
+form {
+  display: grid;
+  gap: 0.8rem;
+  margin-top: 1rem;
+}
+button {
+  padding: 0.7rem 1rem;
+  background: #1f1b16;
+  color: #fff7ec;
+  border: none;
+  border-radius: 999px;
+  font-weight: 600;
+  cursor: pointer;
+}
+button.secondary {
+  background: #fffaf4;
+  color: #1f1b16;
+  border: 1px solid #e4d3c3;
+}
+.actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.danger {
+  background: #b5633f;
+}
+.note {
+  font-size: 0.9rem;
+  color: #6c6058;
+}
+.status {
+  margin-top: 0.6rem;
+  padding: 0.6rem 0.75rem;
+  border-radius: 12px;
+  background: #fffaf4;
+  border: 1px solid #e4d3c3;
+  font-size: 0.9rem;
+}
+.status.success {
+  border-color: #c5e7d1;
+  background: #eef8f1;
+  color: #1f5f3b;
+}
+.status.error {
+  border-color: #f0c5c5;
+  background: #fdeeee;
+  color: #7b2d2d;
+}

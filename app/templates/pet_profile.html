@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Pet Profile</title>
+    <link rel="stylesheet" href="/static/pet_profile.css">
+  </head>
+  <body data-pet-id="__PET_ID__" data-pet-name="__PET_NAME__">
+    <div class="shell">
+      <div class="top-nav">
+        <a href="/screen">Dashboard</a>
+        <a href="/screen/status">Status</a>
+        <a href="/pets/list">Pets</a>
+        <a href="/pets/new">Add Pet</a>
+        <a href="/admin">Admin</a>
+      </div>
+      <h1>__PET_NAME__</h1>
+      __PHOTO_HTML__
+      <div class="info-grid">
+        <div class="info-item">
+          <span>Age</span>
+          <strong>__PET_AGE__</strong>
+        </div>
+        <div class="info-item">
+          <span>Sex</span>
+          <strong>__PET_SEX__</strong>
+        </div>
+        <div class="info-item">
+          <span>Diet</span>
+          <strong>__PET_DIET__</strong>
+        </div>
+        <div class="info-item">
+          <span>Last Vet Visit</span>
+          <strong>__PET_VET__</strong>
+        </div>
+        <div class="info-item">
+          <span>Breed</span>
+          <strong>__PET_BREED__</strong>
+        </div>
+        <div class="info-item">
+          <span>Weight (kg)</span>
+          <strong>__PET_WEIGHT__</strong>
+        </div>
+        <div class="info-item">
+          <span>Today (kg)</span>
+          <strong>__DAILY_TOTAL_KG__</strong>
+        </div>
+        <div class="info-item">
+          <span>Daily Feedings</span>
+          <strong>__DAILY_COUNT__ / __DAILY_LIMIT__</strong>
+        </div>
+        <div class="info-item">
+          <span>Remaining Feedings</span>
+          <strong>__REMAINING_FEEDINGS__</strong>
+        </div>
+        <div class="info-item">
+          <span>Daily Grams Limit</span>
+          <strong>__DAILY_GRAMS_LIMIT__</strong>
+        </div>
+        <div class="info-item">
+          <span>Remaining Grams</span>
+          <strong>__REMAINING_GRAMS__</strong>
+        </div>
+      </div>
+      <div class="card">
+        <div class="note">Profile data shown above. Use the Edit page to update.</div>
+        <div class="actions">
+          <a href="/pets/__PET_ID__/edit">Edit / Delete</a>
+        </div>
+      </div>
+      <div class="card">
+        <h2>Recent Feedings</h2>
+        <ul class="feed-list" id="feed-list"></ul>
+      </div>
+      <div class="card">
+        <h2>Log Feeding</h2>
+        <div class="actions">
+          <button type="button" id="log-now-btn">Log Now</button>
+          <button type="button" class="secondary" id="use-last-amount-btn">Use Last Amount</button>
+          <div class="note" id="last-amount-note">Last amount: <span id="last-amount-display">-</span>g</div>
+        </div>
+        <form id="feed-form">
+          <div class="row">
+            <label for="fed_at">Fed At (UTC)</label>
+            <input id="fed_at" type="datetime-local" required>
+          </div>
+          <div class="row">
+            <label for="amount_grams">Amount (grams)</label>
+            <input id="amount_grams" type="number" min="1" value="85" required>
+          </div>
+          <div class="row">
+            <label for="diet_type">Diet Type</label>
+            <input id="diet_type" value="__PET_DIET_VALUE__">
+          </div>
+          <button type="submit">Save Feeding</button>
+          <div class="status" id="feed-status" style="display: none;"></div>
+        </form>
+      </div>
+    </div>
+    <script src="/static/pet_profile.js" defer></script>
+    <script>
+      if ("serviceWorker" in navigator) {
+        window.addEventListener("load", () => {
+          navigator.serviceWorker.register("/sw.js").catch(() => {});
+        });
+      }
+    </script>
+  </body>
+</html>

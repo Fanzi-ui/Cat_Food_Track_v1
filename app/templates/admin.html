@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Admin Settings</title>
+    <link rel="stylesheet" href="/static/admin.css">
+  </head>
+  <body>
+    <div class="shell">
+      <div class="top-nav">
+        <a href="/screen">Dashboard</a>
+        <a href="/screen/status">Status</a>
+        <a href="/pets/list">Pets</a>
+        <a href="/pets/new">Add Pet</a>
+        <a href="/admin">Admin</a>
+      </div>
+      <div class="admin-header">
+        <div>
+          <h1>Admin Settings</h1>
+          <div class="note">Manage users, pets, exports, and system maintenance.</div>
+        </div>
+        <div class="admin-stats">
+          <div class="stat-card">
+            <div class="label">Users</div>
+            <div class="value" id="admin-user-count">-</div>
+          </div>
+          <div class="stat-card">
+            <div class="label">Pets</div>
+            <div class="value" id="admin-pet-count">-</div>
+          </div>
+          <div class="stat-card">
+            <div class="label">Recent Audit</div>
+            <div class="value" id="admin-audit-count">-</div>
+          </div>
+        </div>
+      </div>
+      <div class="section-nav">
+        <a href="#section-password">Password</a>
+        <a href="#section-users">Users</a>
+        <a href="#section-pets">Pets</a>
+        <a href="#section-export">Exports</a>
+        <a href="#section-audit">Audit</a>
+        <a href="#section-maintenance">Maintenance</a>
+      </div>
+
+      <section class="section" id="section-password">
+        <div class="section-header">
+          <h2>Password</h2>
+          <div class="note">Reset your admin password.</div>
+        </div>
+        <div class="card">
+          <form id="change-pass-form">
+            <div>
+              <label for="current_pass">Current Password</label>
+              <input id="current_pass" type="password">
+            </div>
+            <div>
+              <label for="new_pass">New Password</label>
+              <input id="new_pass" type="password">
+            </div>
+            <button type="submit">Change Password</button>
+            <div class="note" id="change-pass-status"></div>
+          </form>
+        </div>
+      </section>
+
+      <section class="section" id="section-users">
+        <div class="section-header">
+          <h2>Users</h2>
+          <div class="note">Enable, disable, or update notification settings.</div>
+        </div>
+        <div class="card">
+          <div id="user-list"></div>
+          <div class="status" id="user-status" style="display: none;"></div>
+        </div>
+      </section>
+
+      <section class="section" id="section-pets">
+        <div class="section-header">
+          <h2>Pets</h2>
+          <div class="note">Update daily limits or remove pets.</div>
+        </div>
+        <div class="card">
+          <div id="pet-list"></div>
+          <div class="status" id="pet-status" style="display: none;"></div>
+        </div>
+      </section>
+
+      <section class="section" id="section-export">
+        <div class="section-header">
+          <h2>Exports</h2>
+          <div class="note">Download CSVs or a full database backup.</div>
+        </div>
+        <div class="card">
+          <div class="pet-controls">
+            <a class="button-link" href="/admin/export/pets">Download Pets CSV</a>
+            <a class="button-link" href="/admin/export/feedings">Download Feedings CSV</a>
+            <a class="button-link" href="/admin/export/db">Download DB</a>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="section-audit">
+        <div class="section-header">
+          <h2>Audit Log</h2>
+          <div class="note">Recent system activity.</div>
+        </div>
+        <div class="card">
+          <div class="audit-list" id="audit-list"></div>
+        </div>
+      </section>
+
+      <section class="section danger-zone" id="section-maintenance">
+        <div class="section-header">
+          <h2>Maintenance</h2>
+          <div class="note">Use carefully. These actions affect production data.</div>
+        </div>
+        <div class="card">
+          <div class="pet-controls">
+            <button id="clear-data-btn">Clear Test Data</button>
+            <button id="seed-data-btn">Seed Sample Data</button>
+          </div>
+          <div class="note" id="maintenance-status"></div>
+        </div>
+      </section>
+
+      <div class="modal-backdrop hidden" id="confirm-backdrop">
+        <div class="modal">
+          <div class="label" id="confirm-title">Confirm action</div>
+          <div class="note" id="confirm-message"></div>
+          <div class="modal-actions">
+            <button type="button" class="secondary" id="confirm-cancel">Cancel</button>
+            <button type="button" class="danger" id="confirm-ok">Confirm</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <script src="/static/admin.js" defer></script>
+  </body>
+</html>

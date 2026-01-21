@@ -1,0 +1,232 @@
+body {
+  margin: 0;
+  font-family: "Optima", "Gill Sans", "Candara", sans-serif;
+  background: #f8f2e9;
+  color: #1f1b16;
+}
+.shell {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 1.5rem 1rem 2.5rem;
+}
+.top-nav {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+  flex-wrap: wrap;
+}
+.top-nav a {
+  text-decoration: none;
+  font-size: 0.85rem;
+  background: #fffaf4;
+  color: #1f1b16;
+  padding: 0.4rem 0.75rem;
+  border-radius: 999px;
+  border: 1px solid #e4d3c3;
+}
+.admin-header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+.admin-stats {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+}
+.stat-card {
+  background: #fffdf9;
+  border-radius: 16px;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid #efe0d2;
+}
+.section-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 1rem 0 0.5rem;
+}
+.section-nav a {
+  text-decoration: none;
+  font-size: 0.85rem;
+  background: #fffaf4;
+  color: #1f1b16;
+  padding: 0.4rem 0.75rem;
+  border-radius: 999px;
+  border: 1px solid #e4d3c3;
+}
+.section {
+  margin-top: 1.4rem;
+}
+.section-header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+.section-header h2 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+.danger-zone .card {
+  border-color: #f0c5c5;
+  background: #fff2f2;
+}
+.danger-zone button {
+  background: #7b2d2d;
+}
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(31, 27, 22, 0.55);
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  z-index: 50;
+}
+.modal {
+  width: min(420px, 100%);
+  background: #fffdf9;
+  border-radius: 18px;
+  border: 1px solid #efe0d2;
+  padding: 1.2rem;
+  box-shadow: 0 18px 40px rgba(31, 27, 22, 0.25);
+  display: grid;
+  gap: 0.75rem;
+}
+.modal-actions {
+  display: flex;
+  gap: 0.6rem;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+button.secondary {
+  background: #fffaf4;
+  color: #1f1b16;
+  border: 1px solid #e4d3c3;
+}
+button.danger {
+  background: #7b2d2d;
+  color: #fff7ec;
+}
+.hidden {
+  display: none;
+}
+.card {
+  background: #fffdf9;
+  border-radius: 18px;
+  padding: 1.2rem;
+  box-shadow: 0 10px 30px rgba(40, 30, 24, 0.08);
+  margin-top: 1rem;
+}
+form {
+  display: grid;
+  gap: 0.8rem;
+  margin-top: 1rem;
+}
+label { font-weight: 600; }
+input {
+  width: 100%;
+  padding: 0.6rem 0.75rem;
+  border-radius: 12px;
+  border: 1px solid #d8c8b6;
+  background: #fffaf4;
+}
+button {
+  padding: 0.7rem 1rem;
+  background: #1f1b16;
+  color: #fff7ec;
+  border: none;
+  border-radius: 999px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.note {
+  font-size: 0.9rem;
+  color: #6c6058;
+}
+.status {
+  margin-top: 0.6rem;
+  padding: 0.6rem 0.75rem;
+  border-radius: 12px;
+  background: #fffaf4;
+  border: 1px solid #e4d3c3;
+  font-size: 0.9rem;
+}
+.card .status {
+  margin-top: 0.8rem;
+}
+.status.success {
+  border-color: #c5e7d1;
+  background: #eef8f1;
+  color: #1f5f3b;
+}
+.status.error {
+  border-color: #f0c5c5;
+  background: #fdeeee;
+  color: #7b2d2d;
+}
+.user-row {
+  display: grid;
+  gap: 0.6rem;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid #efe0d2;
+}
+.user-controls {
+  display: grid;
+  gap: 0.6rem;
+}
+.user-controls button {
+  padding: 0.5rem 0.9rem;
+}
+.user-controls input[type="email"],
+.user-controls input[type="password"] {
+  max-width: 100%;
+}
+.user-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.user-actions button {
+  padding: 0.5rem 0.9rem;
+}
+.user-field {
+  display: grid;
+  gap: 0.3rem;
+}
+.user-field label {
+  font-size: 0.8rem;
+  color: #6c6058;
+}
+.pet-row {
+  display: grid;
+  gap: 0.5rem;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid #efe0d2;
+}
+.pet-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.button-link {
+  display: inline-block;
+  text-decoration: none;
+  padding: 0.6rem 0.9rem;
+  border-radius: 999px;
+  border: 1px solid #e4d3c3;
+  background: #fffaf4;
+  color: #1f1b16;
+  font-weight: 600;
+}
+.audit-list {
+  display: grid;
+  gap: 0.6rem;
+}
+.audit-item {
+  padding: 0.6rem 0.75rem;
+  background: #fffaf4;
+  border: 1px solid #e4d3c3;
+  border-radius: 12px;
+  font-size: 0.9rem;
+}
