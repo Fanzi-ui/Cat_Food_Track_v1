@@ -66,6 +66,10 @@ body {
   font-size: 0.85rem;
   color: var(--muted);
 }
+.app-version {
+  font-size: 0.7rem;
+  color: var(--muted);
+}
 .page-links {
   margin-top: 0.8rem;
   display: flex;

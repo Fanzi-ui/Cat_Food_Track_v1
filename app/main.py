@@ -38,6 +38,7 @@ SESSION_MAX_AGE = 60 * 60 * 24 * 7
 CSRF_COOKIE_NAME = "csrf"
 CSRF_HEADER_NAME = "X-CSRF-Token"
 UNSAFE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
+APP_VERSION = os.getenv("APP_VERSION", "v1.0.1")
 
 ASSET_DIR = os.path.join(os.path.dirname(__file__))
 TEMPLATE_DIR = os.path.join(ASSET_DIR, "templates")
@@ -408,6 +409,7 @@ def render_template(name: str, replacements: dict[str, str] | None = None) -> st
     template_path = os.path.join(TEMPLATE_DIR, name)
     with open(template_path, "r", encoding="utf-8") as handle:
         html = handle.read()
+    html = html.replace("__APP_VERSION__", APP_VERSION)
     if replacements:
         for key, value in replacements.items():
             html = html.replace(key, value)
