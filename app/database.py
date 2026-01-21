@@ -46,6 +46,10 @@ def ensure_schema() -> None:
                 conn.execute(text("ALTER TABLE pets ADD COLUMN daily_limit_count INTEGER"))
             if pet_columns and "daily_grams_limit" not in pet_columns:
                 conn.execute(text("ALTER TABLE pets ADD COLUMN daily_grams_limit INTEGER"))
+            if pet_columns and "feed_time_1" not in pet_columns:
+                conn.execute(text("ALTER TABLE pets ADD COLUMN feed_time_1 VARCHAR"))
+            if pet_columns and "feed_time_2" not in pet_columns:
+                conn.execute(text("ALTER TABLE pets ADD COLUMN feed_time_2 VARCHAR"))
             user_columns = {row[1] for row in conn.execute(text("PRAGMA table_info(users)"))}
             if user_columns and "is_active" not in user_columns:
                 conn.execute(text("ALTER TABLE users ADD COLUMN is_active INTEGER DEFAULT 1"))
@@ -90,6 +94,8 @@ def ensure_schema() -> None:
             conn.execute(text("ALTER TABLE pets ADD COLUMN IF NOT EXISTS estimated_weight_kg FLOAT"))
             conn.execute(text("ALTER TABLE pets ADD COLUMN IF NOT EXISTS daily_limit_count INTEGER"))
             conn.execute(text("ALTER TABLE pets ADD COLUMN IF NOT EXISTS daily_grams_limit INTEGER"))
+            conn.execute(text("ALTER TABLE pets ADD COLUMN IF NOT EXISTS feed_time_1 VARCHAR"))
+            conn.execute(text("ALTER TABLE pets ADD COLUMN IF NOT EXISTS feed_time_2 VARCHAR"))
             conn.execute(
                 text("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE")
             )

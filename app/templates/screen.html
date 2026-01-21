@@ -35,6 +35,10 @@
         <a href="/pets/new">Add Pet</a>
         <a href="/admin">Admin</a>
       </div>
+      <div class="alert-banner hidden" id="low-stock-banner">
+        <div class="label">Low Food Stock</div>
+        <div class="note" id="low-stock-list"></div>
+      </div>
 
       <div class="panel" id="auth-panel">
         <div class="note">Sign in or create an account to continue.</div>
@@ -224,6 +228,14 @@
           <div>
             <label for="pet_diet">Diet Type</label>
             <input id="pet_diet" type="text">
+          </div>
+          <div>
+            <label for="pet_feed_time_1">Feeding Time 1</label>
+            <input id="pet_feed_time_1" type="time">
+          </div>
+          <div>
+            <label for="pet_feed_time_2">Feeding Time 2</label>
+            <input id="pet_feed_time_2" type="time">
           </div>
           <div>
             <label for="pet_photo">Photo (from phone)</label>

@@ -4,3 +4,4 @@ sqlalchemy==2.0.30
 pydantic==2.7.4
 psycopg2-binary==2.9.9
 pywebpush==1.14.0
+reportlab==4.2.2

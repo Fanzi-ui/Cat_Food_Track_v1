@@ -53,6 +53,8 @@ class PetCreate(BaseModel):
     photo_base64: Optional[str] = None
     breed: Optional[str] = None
     estimated_weight_kg: Optional[float] = Field(default=None, ge=0)
+    feed_time_1: Optional[str] = None
+    feed_time_2: Optional[str] = None
 
 
 class PetUpdate(BaseModel):
@@ -65,6 +67,8 @@ class PetUpdate(BaseModel):
     photo_base64: Optional[str] = None
     breed: Optional[str] = None
     estimated_weight_kg: Optional[float] = Field(default=None, ge=0)
+    feed_time_1: Optional[str] = None
+    feed_time_2: Optional[str] = None
 
 
 class PetOut(BaseModel):
@@ -77,6 +81,8 @@ class PetOut(BaseModel):
     photo_url: Optional[str] = None
     breed: Optional[str] = None
     estimated_weight_kg: Optional[float] = None
+    feed_time_1: Optional[str] = None
+    feed_time_2: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -88,6 +94,45 @@ class PetStatus(BaseModel):
     daily_count: int
     daily_limit: int
     remaining_feedings: int
+
+
+class PetInventoryUpdate(BaseModel):
+    food_name: str = Field(..., min_length=1)
+    sachet_count: int = Field(..., ge=0)
+
+
+class PetInventoryOut(BaseModel):
+    pet_id: int
+    food_name: Optional[str] = None
+    sachet_count: int
+    sachet_size_grams: int
+    remaining_grams: int
+    updated_at: Optional[datetime] = None
+    low_stock: bool
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class LowStockItem(BaseModel):
+    pet_id: int
+    pet_name: str
+    food_name: str
+    sachet_count: int
+    remaining_grams: int
+
+
+class PetWeightCreate(BaseModel):
+    weight_kg: float = Field(..., ge=0)
+    recorded_at: Optional[datetime] = None
+
+
+class PetWeightOut(BaseModel):
+    id: int
+    pet_id: int
+    weight_kg: float
+    recorded_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 class DeviceFeedRequest(BaseModel):

@@ -17,6 +17,8 @@ from fastapi import Cookie, Depends, FastAPI, Header, HTTPException, Query, Requ
 from fastapi.openapi.docs import get_redoc_html, get_swagger_ui_html
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
+from reportlab.lib.pagesizes import letter
+from reportlab.pdfgen import canvas
 from sqlalchemy import func, select
 try:
     from pywebpush import WebPushException, webpush
@@ -39,6 +41,15 @@ CSRF_COOKIE_NAME = "csrf"
 CSRF_HEADER_NAME = "X-CSRF-Token"
 UNSAFE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 APP_VERSION = os.getenv("APP_VERSION", "V.0.2")
+SACHET_SIZE_GRAMS = 85
+LOW_STOCK_THRESHOLD = int(os.getenv("LOW_STOCK_THRESHOLD", "5"))
+FOOD_OPTIONS = [
+    "Whiskas Poultry",
+    "Whiskas Tuna",
+    "Royal Canin",
+    "Purina One",
+    "Hill's Science Diet",
+]
 
 ASSET_DIR = os.path.join(os.path.dirname(__file__))
 TEMPLATE_DIR = os.path.join(ASSET_DIR, "templates")
@@ -164,6 +175,56 @@ def send_push_notifications(
             if exc.response and exc.response.status_code in {404, 410}:
                 crud.delete_push_subscription(db, sub.endpoint)
             continue
+
+
+def send_push_message(db: Session, title: str, body: str, url: str) -> None:
+    if webpush is None:
+        return
+    vapid_public = os.getenv("VAPID_PUBLIC_KEY")
+    vapid_private = os.getenv("VAPID_PRIVATE_KEY")
+    vapid_subject = os.getenv("VAPID_SUBJECT", "mailto:admin@example.com")
+    if not vapid_public or not vapid_private:
+        return
+    payload = {"title": title, "body": body, "url": url}
+    subscriptions = crud.list_push_subscriptions(db)
+    for sub in subscriptions:
+        try:
+            webpush(
+                subscription_info={
+                    "endpoint": sub.endpoint,
+                    "keys": {"p256dh": sub.p256dh, "auth": sub.auth},
+                },
+                data=json.dumps(payload),
+                vapid_private_key=vapid_private,
+                vapid_claims={"sub": vapid_subject},
+            )
+        except WebPushException as exc:
+            if exc.response and exc.response.status_code in {404, 410}:
+                crud.delete_push_subscription(db, sub.endpoint)
+            continue
+
+
+def handle_inventory_after_feeding(
+    db: Session,
+    pet: models.Pet,
+    amount_grams: int,
+) -> None:
+    inventory = crud.get_pet_inventory(db, pet.id)
+    if not inventory:
+        return
+    previous = inventory.sachet_count
+    updated = crud.apply_inventory_consumption(db, pet.id, amount_grams)
+    if not updated:
+        return
+    if previous > LOW_STOCK_THRESHOLD and updated.sachet_count <= LOW_STOCK_THRESHOLD:
+        detail = f"{pet.name} low stock: {updated.sachet_count} sachets left"
+        crud.create_audit_log(db, "low_stock", details=detail)
+        send_push_message(
+            db,
+            "Low food stock",
+            detail,
+            f"/pets/{pet.id}/profile",
+        )
 
 
 SEED_DIET_DEFAULT = "Whiskas Poultry"
@@ -373,6 +434,7 @@ def log_feeding(
     if event.diet_type:
         detail += f" - {event.diet_type}"
     crud.create_audit_log(db, "feeding_logged", details=detail)
+    handle_inventory_after_feeding(db, pet, event.amount_grams)
     send_feeding_notifications(pet, event, crud.list_notify_configs(db))
     send_push_notifications(db, pet, event)
     return event
@@ -414,6 +476,17 @@ def render_template(name: str, replacements: dict[str, str] | None = None) -> st
         for key, value in replacements.items():
             html = html.replace(key, value)
     return html
+
+
+def build_food_options(selected: str | None = None) -> str:
+    options = FOOD_OPTIONS[:]
+    if selected and selected not in options:
+        options.insert(0, selected)
+    selected_value = selected or ""
+    return "\n".join(
+        f'<option value="{item}"{" selected" if item == selected_value else ""}>{item}</option>'
+        for item in options
+    )
 
 
 def build_screen_html(initial_hash: str, mode: str) -> str:
@@ -1041,6 +1114,7 @@ def device_feed(
     if event.diet_type:
         detail += f" - {event.diet_type}"
     crud.create_audit_log(db, "feeding_logged", details=detail)
+    handle_inventory_after_feeding(db, pet, event.amount_grams)
     send_feeding_notifications(pet, event, crud.list_notify_configs(db))
     send_push_notifications(db, pet, event)
     return event
@@ -1069,6 +1143,8 @@ def create_pet(
         photo_mime=photo_mime,
         breed=payload.breed,
         estimated_weight_kg=payload.estimated_weight_kg,
+        feed_time_1=payload.feed_time_1,
+        feed_time_2=payload.feed_time_2,
     )
     return crud.create_pet(db, pet)
 
@@ -1150,6 +1226,210 @@ def list_pet_feedings(
     return crud.list_feedings_for_pet(db, pet_id, limit)
 
 
+@app.get("/pets/{pet_id}/inventory", response_model=schemas.PetInventoryOut)
+def get_pet_inventory(
+    pet_id: int,
+    db: Session = Depends(get_db),
+    _: None = Depends(require_auth),
+):
+    pet = crud.get_pet(db, pet_id)
+    if not pet:
+        raise HTTPException(status_code=404, detail="Pet not found.")
+    inventory = crud.get_pet_inventory(db, pet_id)
+    if not inventory:
+        return schemas.PetInventoryOut(
+            pet_id=pet_id,
+            food_name=None,
+            sachet_count=0,
+            sachet_size_grams=SACHET_SIZE_GRAMS,
+            remaining_grams=0,
+            updated_at=None,
+            low_stock=True,
+        )
+    return schemas.PetInventoryOut(
+        pet_id=pet_id,
+        food_name=inventory.food_name,
+        sachet_count=inventory.sachet_count,
+        sachet_size_grams=inventory.sachet_size_grams,
+        remaining_grams=inventory.remaining_grams,
+        updated_at=inventory.updated_at,
+        low_stock=inventory.sachet_count <= LOW_STOCK_THRESHOLD,
+    )
+
+
+@app.put("/pets/{pet_id}/inventory", response_model=schemas.PetInventoryOut)
+def update_pet_inventory(
+    pet_id: int,
+    payload: schemas.PetInventoryUpdate,
+    db: Session = Depends(get_db),
+    _: None = Depends(require_auth),
+):
+    pet = crud.get_pet(db, pet_id)
+    if not pet:
+        raise HTTPException(status_code=404, detail="Pet not found.")
+    inventory = crud.upsert_pet_inventory(
+        db,
+        pet_id=pet_id,
+        food_name=payload.food_name,
+        sachet_count=payload.sachet_count,
+        sachet_size_grams=SACHET_SIZE_GRAMS,
+    )
+    return schemas.PetInventoryOut(
+        pet_id=pet_id,
+        food_name=inventory.food_name,
+        sachet_count=inventory.sachet_count,
+        sachet_size_grams=inventory.sachet_size_grams,
+        remaining_grams=inventory.remaining_grams,
+        updated_at=inventory.updated_at,
+        low_stock=inventory.sachet_count <= LOW_STOCK_THRESHOLD,
+    )
+
+
+@app.get("/inventory/low-stock", response_model=list[schemas.LowStockItem])
+def list_low_stock_inventory(
+    db: Session = Depends(get_db),
+    _: None = Depends(require_auth),
+):
+    items = crud.list_low_stock_inventory(db, LOW_STOCK_THRESHOLD)
+    return [
+        schemas.LowStockItem(
+            pet_id=pet.id,
+            pet_name=pet.name,
+            food_name=inventory.food_name,
+            sachet_count=inventory.sachet_count,
+            remaining_grams=inventory.remaining_grams,
+        )
+        for inventory, pet in items
+    ]
+
+
+@app.get("/pets/{pet_id}/weights", response_model=list[schemas.PetWeightOut])
+def list_pet_weights(
+    pet_id: int,
+    limit: int = Query(20, ge=1, le=100),
+    db: Session = Depends(get_db),
+    _: None = Depends(require_auth),
+):
+    pet = crud.get_pet(db, pet_id)
+    if not pet:
+        raise HTTPException(status_code=404, detail="Pet not found.")
+    return crud.list_weight_entries(db, pet_id, limit)
+
+
+@app.post("/pets/{pet_id}/weights", response_model=schemas.PetWeightOut)
+def create_pet_weight(
+    pet_id: int,
+    payload: schemas.PetWeightCreate,
+    db: Session = Depends(get_db),
+    _: None = Depends(require_auth),
+):
+    pet = crud.get_pet(db, pet_id)
+    if not pet:
+        raise HTTPException(status_code=404, detail="Pet not found.")
+    recorded_at = payload.recorded_at or datetime.utcnow()
+    entry = crud.create_weight_entry(db, pet_id, payload.weight_kg, recorded_at)
+    detail = f"{pet.name} weight logged: {entry.weight_kg}kg"
+    crud.create_audit_log(db, "weight_logged", details=detail)
+    return entry
+
+
+@app.get("/pets/{pet_id}/report.pdf")
+def pet_report_pdf(
+    pet_id: int,
+    start: date | None = Query(default=None),
+    end: date | None = Query(default=None),
+    db: Session = Depends(get_db),
+    _: None = Depends(require_auth),
+):
+    pet = crud.get_pet(db, pet_id)
+    if not pet:
+        raise HTTPException(status_code=404, detail="Pet not found.")
+    if end:
+        end_dt = datetime.combine(end + timedelta(days=1), time.min)
+    else:
+        end_dt = datetime.utcnow() + timedelta(days=1)
+    if start:
+        start_dt = datetime.combine(start, time.min)
+    else:
+        start_dt = end_dt - timedelta(days=30)
+    feedings = crud.list_feedings_range(db, pet_id, start_dt, end_dt)
+    weights = crud.list_weight_entries_range(db, pet_id, start_dt, end_dt)
+    inventory = crud.get_pet_inventory(db, pet_id)
+    buffer = io.BytesIO()
+    pdf = canvas.Canvas(buffer, pagesize=letter)
+    _, height = letter
+    y = height - 40
+    pdf.setFont("Helvetica-Bold", 16)
+    pdf.drawString(40, y, f"{pet.name} Report")
+    y -= 18
+    pdf.setFont("Helvetica", 10)
+    end_display = (end_dt - timedelta(days=1)).date()
+    date_range = f"{start_dt.date().isoformat()} to {end_display.isoformat()}"
+    pdf.drawString(40, y, f"Date range: {date_range}")
+    y -= 16
+    pdf.drawString(40, y, f"Generated: {datetime.utcnow().isoformat(timespec='minutes')} UTC")
+    y -= 22
+
+    pdf.setFont("Helvetica-Bold", 12)
+    pdf.drawString(40, y, "Inventory")
+    y -= 14
+    pdf.setFont("Helvetica", 10)
+    if inventory:
+        pdf.drawString(
+            40,
+            y,
+            f"{inventory.food_name} - {inventory.sachet_count} sachets "
+            f"({inventory.remaining_grams}g remaining)",
+        )
+    else:
+        pdf.drawString(40, y, "No inventory set.")
+    y -= 22
+
+    pdf.setFont("Helvetica-Bold", 12)
+    pdf.drawString(40, y, "Weight Entries")
+    y -= 14
+    pdf.setFont("Helvetica", 10)
+    if not weights:
+        pdf.drawString(40, y, "No weight entries.")
+        y -= 16
+    else:
+        for entry in weights:
+            if y < 80:
+                pdf.showPage()
+                y = height - 40
+                pdf.setFont("Helvetica", 10)
+            pdf.drawString(40, y, f"{entry.recorded_at.isoformat()} - {entry.weight_kg}kg")
+            y -= 14
+    y -= 8
+
+    pdf.setFont("Helvetica-Bold", 12)
+    pdf.drawString(40, y, "Feedings")
+    y -= 14
+    pdf.setFont("Helvetica", 10)
+    if not feedings:
+        pdf.drawString(40, y, "No feedings.")
+        y -= 16
+    else:
+        for entry in feedings:
+            if y < 80:
+                pdf.showPage()
+                y = height - 40
+                pdf.setFont("Helvetica", 10)
+            diet = f" ({entry.diet_type})" if entry.diet_type else ""
+            pdf.drawString(
+                40,
+                y,
+                f"{entry.fed_at.isoformat()} - {entry.amount_grams}g{diet}",
+            )
+            y -= 14
+    pdf.showPage()
+    pdf.save()
+    buffer.seek(0)
+    filename = f"{pet.name.replace(' ', '_').lower()}_report.pdf"
+    headers = {"Content-Disposition": f"attachment; filename={filename}"}
+    return Response(content=buffer.getvalue(), media_type="application/pdf", headers=headers)
+
+
 @app.get("/pets/{pet_id}/profile", response_class=HTMLResponse)
 def pet_profile(
     pet_id: int,
@@ -1178,6 +1458,13 @@ def pet_profile(
         photo_html = f'<img class="pet-photo" src="{pet.photo_url}" alt="{pet.name}">'
     daily_grams_limit_text = str(daily_grams_limit) if daily_grams_limit else "No limit"
     remaining_grams_text = str(remaining_grams) if remaining_grams is not None else "No limit"
+    inventory = crud.get_pet_inventory(db, pet_id)
+    inventory_sachets = inventory.sachet_count if inventory else 0
+    inventory_remaining = inventory.remaining_grams if inventory else 0
+    inventory_food = inventory.food_name if inventory else ""
+    inventory_updated = inventory.updated_at.isoformat() if inventory else "--"
+    feed_time_1 = pet.feed_time_1 or "Not set"
+    feed_time_2 = pet.feed_time_2 or "Not set"
     html = render_template(
         "pet_profile.html",
         {
@@ -1197,6 +1484,12 @@ def pet_profile(
             "__REMAINING_FEEDINGS__": str(remaining_feedings),
             "__DAILY_GRAMS_LIMIT__": daily_grams_limit_text,
             "__REMAINING_GRAMS__": remaining_grams_text,
+            "__FEED_TIME_1__": feed_time_1,
+            "__FEED_TIME_2__": feed_time_2,
+            "__INVENTORY_SACHETS__": str(inventory_sachets),
+            "__INVENTORY_REMAINING__": str(inventory_remaining),
+            "__INVENTORY_UPDATED__": inventory_updated,
+            "__FOOD_OPTIONS__": build_food_options(inventory_food),
         },
     )
     return HTMLResponse(content=html)
@@ -1248,6 +1541,8 @@ def pet_profile_edit(
             "__PET_DIET__": str(pet.diet_type or ""),
             "__PET_PHOTO_URL__": str(pet.photo_url or ""),
             "__PET_VET__": str(pet.last_vet_visit or ""),
+            "__FEED_TIME_1__": str(pet.feed_time_1 or ""),
+            "__FEED_TIME_2__": str(pet.feed_time_2 or ""),
         },
     )
     return HTMLResponse(content=html)

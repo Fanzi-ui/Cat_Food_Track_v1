@@ -29,6 +29,8 @@ const pushCard = document.getElementById("push-card");
 const pushEnable = document.getElementById("push-enable");
 const pushDisable = document.getElementById("push-disable");
 const pushStatus = document.getElementById("push-status");
+const lowStockBanner = document.getElementById("low-stock-banner");
+const lowStockList = document.getElementById("low-stock-list");
 let petsCache = [];
 const tips = [
   "Tip: Log feedings from each pet profile.",
@@ -341,6 +343,30 @@ async function refreshStats() {
   }
 }
 
+async function loadLowStock() {
+  if (!lowStockBanner || !lowStockList) {
+    return;
+  }
+  const response = await fetch("/inventory/low-stock", {
+    headers: headers(),
+    credentials: "include",
+  });
+  if (!response.ok) {
+    lowStockBanner.classList.add("hidden");
+    return;
+  }
+  const data = await response.json();
+  if (!data.length) {
+    lowStockBanner.classList.add("hidden");
+    return;
+  }
+  const lines = data.map(item => {
+    return `${item.pet_name}: ${item.sachet_count} sachets left (${item.food_name})`;
+  });
+  lowStockList.textContent = lines.join(" • ");
+  lowStockBanner.classList.remove("hidden");
+}
+
 async function loadActivity() {
   if (!activityList) {
     return;
@@ -374,6 +400,9 @@ async function refreshAll() {
     authPanel.classList.remove("hidden");
     dashboardPanel.classList.add("hidden");
     pageLinks.style.display = "none";
+    if (lowStockBanner) {
+      lowStockBanner.classList.add("hidden");
+    }
     contentPanels.forEach(id => document.getElementById(id).classList.add("hidden"));
     return;
   }
@@ -390,6 +419,7 @@ async function refreshAll() {
     await loadPets();
     await refreshDashboard();
     await loadActivity();
+    await loadLowStock();
     return;
   }
   dashboardPanel.classList.add("hidden");
@@ -402,6 +432,7 @@ async function refreshAll() {
   await loadPets();
   await refreshStats();
   await loadActivity();
+  await loadLowStock();
 }
 
 async function loadDashboardStats() {
@@ -554,6 +585,8 @@ document.getElementById("pet-form").addEventListener("submit", async (event) => 
     sex: document.getElementById("pet_sex").value.trim() || null,
     estimated_weight_kg: petWeight.value ? parseFloat(petWeight.value) : null,
     diet_type: document.getElementById("pet_diet").value.trim() || null,
+    feed_time_1: document.getElementById("pet_feed_time_1").value || null,
+    feed_time_2: document.getElementById("pet_feed_time_2").value || null,
     photo_base64: petPhotoData,
     last_vet_visit: document.getElementById("pet_vet").value || null
   };
@@ -581,6 +614,8 @@ document.getElementById("pet-form").addEventListener("submit", async (event) => 
     document.getElementById("pet_sex").value = "";
     petWeight.value = "";
     document.getElementById("pet_diet").value = "";
+    document.getElementById("pet_feed_time_1").value = "";
+    document.getElementById("pet_feed_time_2").value = "";
     document.getElementById("pet_photo").value = "";
     document.getElementById("pet_vet").value = "";
     petPhotoData = null;

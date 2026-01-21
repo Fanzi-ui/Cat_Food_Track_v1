@@ -71,6 +71,8 @@ if (petForm) {
       sex: document.getElementById("pet_sex").value.trim() || null,
       estimated_weight_kg: petWeight.value ? parseFloat(petWeight.value) : null,
       diet_type: document.getElementById("pet_diet").value.trim() || null,
+      feed_time_1: document.getElementById("pet_feed_time_1").value || null,
+      feed_time_2: document.getElementById("pet_feed_time_2").value || null,
       photo_base64: petPhotoData,
       last_vet_visit: document.getElementById("pet_vet").value || null
     };
@@ -98,6 +100,8 @@ if (petForm) {
       document.getElementById("pet_sex").value = "";
       petWeight.value = "";
       document.getElementById("pet_diet").value = "";
+      document.getElementById("pet_feed_time_1").value = "";
+      document.getElementById("pet_feed_time_2").value = "";
       document.getElementById("pet_photo").value = "";
       document.getElementById("pet_vet").value = "";
       petPhotoData = null;

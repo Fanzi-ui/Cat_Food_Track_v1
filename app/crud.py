@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import math
 import secrets
 from datetime import datetime
 
@@ -135,6 +136,27 @@ def list_feedings_for_pet(db: Session, pet_id: int, limit: int = 20) -> list[mod
     )
 
 
+def list_feedings_range(
+    db: Session,
+    pet_id: int,
+    start: datetime,
+    end: datetime,
+) -> list[models.FeedingEvent]:
+    return (
+        db.execute(
+            select(models.FeedingEvent)
+            .where(
+                models.FeedingEvent.pet_id == pet_id,
+                models.FeedingEvent.fed_at >= start,
+                models.FeedingEvent.fed_at < end,
+            )
+            .order_by(models.FeedingEvent.fed_at.asc())
+        )
+        .scalars()
+        .all()
+    )
+
+
 def get_daily_total_for_pet(
     db: Session, day_start: datetime, day_end: datetime, pet_id: int
 ) -> int:
@@ -146,6 +168,134 @@ def get_daily_total_for_pet(
         )
     ).scalar_one()
     return int(total)
+
+
+def get_pet_inventory(db: Session, pet_id: int) -> models.PetFoodInventory | None:
+    return db.execute(
+        select(models.PetFoodInventory).where(models.PetFoodInventory.pet_id == pet_id)
+    ).scalar_one_or_none()
+
+
+def upsert_pet_inventory(
+    db: Session,
+    pet_id: int,
+    food_name: str,
+    sachet_count: int,
+    sachet_size_grams: int,
+) -> models.PetFoodInventory:
+    existing = get_pet_inventory(db, pet_id)
+    now = datetime.utcnow()
+    remaining_grams = max(0, sachet_count * sachet_size_grams)
+    if existing:
+        existing.food_name = food_name
+        existing.sachet_count = sachet_count
+        existing.sachet_size_grams = sachet_size_grams
+        existing.remaining_grams = remaining_grams
+        existing.updated_at = now
+        db.add(existing)
+        db.commit()
+        db.refresh(existing)
+        return existing
+    record = models.PetFoodInventory(
+        pet_id=pet_id,
+        food_name=food_name,
+        sachet_count=sachet_count,
+        sachet_size_grams=sachet_size_grams,
+        remaining_grams=remaining_grams,
+        updated_at=now,
+    )
+    db.add(record)
+    db.commit()
+    db.refresh(record)
+    return record
+
+
+def apply_inventory_consumption(
+    db: Session,
+    pet_id: int,
+    amount_grams: int,
+) -> models.PetFoodInventory | None:
+    inventory = get_pet_inventory(db, pet_id)
+    if not inventory:
+        return None
+    remaining = max(0, int(inventory.remaining_grams) - int(amount_grams))
+    sachet_size = max(1, int(inventory.sachet_size_grams))
+    sachet_count = int(math.ceil(remaining / sachet_size)) if remaining else 0
+    inventory.remaining_grams = remaining
+    inventory.sachet_count = sachet_count
+    inventory.updated_at = datetime.utcnow()
+    db.add(inventory)
+    db.commit()
+    db.refresh(inventory)
+    return inventory
+
+
+def list_low_stock_inventory(
+    db: Session,
+    threshold: int,
+) -> list[tuple[models.PetFoodInventory, models.Pet]]:
+    rows = db.execute(
+        select(models.PetFoodInventory, models.Pet)
+        .join(models.Pet, models.Pet.id == models.PetFoodInventory.pet_id)
+        .where(models.PetFoodInventory.sachet_count <= threshold)
+        .order_by(models.Pet.name.asc())
+    ).all()
+    return [(row[0], row[1]) for row in rows]
+
+
+def create_weight_entry(
+    db: Session,
+    pet_id: int,
+    weight_kg: float,
+    recorded_at: datetime,
+) -> models.PetWeightEntry:
+    record = models.PetWeightEntry(
+        pet_id=pet_id,
+        weight_kg=weight_kg,
+        recorded_at=recorded_at,
+    )
+    db.add(record)
+    db.commit()
+    db.refresh(record)
+    return record
+
+
+def list_weight_entries(
+    db: Session,
+    pet_id: int,
+    limit: int = 20,
+) -> list[models.PetWeightEntry]:
+    return (
+        db.execute(
+            select(models.PetWeightEntry)
+            .where(models.PetWeightEntry.pet_id == pet_id)
+            .order_by(models.PetWeightEntry.recorded_at.desc())
+            .limit(limit)
+        )
+        .scalars()
+        .all()
+    )
+
+
+def list_weight_entries_range(
+    db: Session,
+    pet_id: int,
+    start: datetime,
+    end: datetime,
+) -> list[models.PetWeightEntry]:
+    return (
+        db.execute(
+            select(models.PetWeightEntry)
+            .where(
+                models.PetWeightEntry.pet_id == pet_id,
+                models.PetWeightEntry.recorded_at >= start,
+                models.PetWeightEntry.recorded_at < end,
+            )
+            .order_by(models.PetWeightEntry.recorded_at.asc())
+        )
+        .scalars()
+        .all()
+    )
 
 
 def _hash_password(password: str, salt: str) -> str:

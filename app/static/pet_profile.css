@@ -78,7 +78,7 @@ body {
 }
 h1 { margin: 0; }
 label { font-weight: 600; }
-input {
+input, select {
   width: 100%;
   padding: 0.6rem 0.75rem;
   border-radius: 12px;
@@ -126,6 +126,17 @@ button.secondary {
 .note {
   font-size: 0.9rem;
   color: #6c6058;
+}
+.inventory-summary {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0.6rem 0 0.8rem;
+}
+.report-grid {
+  display: grid;
+  gap: 0.8rem;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  margin-top: 0.6rem;
 }
 .status {
   margin-top: 0.6rem;

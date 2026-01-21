@@ -89,6 +89,8 @@ document.getElementById("edit-form").addEventListener("submit", async (event) =>
       ? parseFloat(document.getElementById("estimated_weight_kg").value)
       : null,
     diet_type: document.getElementById("diet_type").value.trim() || null,
+    feed_time_1: document.getElementById("feed_time_1").value || null,
+    feed_time_2: document.getElementById("feed_time_2").value || null,
     photo_url: photoUrlInput.value.trim() || null,
     photo_base64: photoData,
     last_vet_visit: document.getElementById("last_vet_visit").value || null,

@@ -72,6 +72,8 @@ class Pet(Base):
     estimated_weight_kg: Mapped[float | None] = mapped_column(nullable=True)
     daily_limit_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
     daily_grams_limit: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    feed_time_1: Mapped[str | None] = mapped_column(String, nullable=True)
+    feed_time_2: Mapped[str | None] = mapped_column(String, nullable=True)
 
 
 class FeedingEvent(Base):
@@ -82,6 +84,29 @@ class FeedingEvent(Base):
     amount_grams: Mapped[int] = mapped_column(Integer, nullable=False)
     diet_type: Mapped[str | None] = mapped_column(String, nullable=True)
     pet_id: Mapped[int | None] = mapped_column(ForeignKey("pets.id"), nullable=True)
+
+
+class PetFoodInventory(Base):
+    __tablename__ = "pet_food_inventory"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    pet_id: Mapped[int] = mapped_column(
+        ForeignKey("pets.id"), nullable=False, unique=True, index=True
+    )
+    food_name: Mapped[str] = mapped_column(String, nullable=False)
+    sachet_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    sachet_size_grams: Mapped[int] = mapped_column(Integer, nullable=False)
+    remaining_grams: Mapped[int] = mapped_column(Integer, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+
+
+class PetWeightEntry(Base):
+    __tablename__ = "pet_weight_entries"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    pet_id: Mapped[int] = mapped_column(ForeignKey("pets.id"), nullable=False, index=True)
+    weight_kg: Mapped[float] = mapped_column(nullable=False)
+    recorded_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
 
 
 class PushSubscription(Base):

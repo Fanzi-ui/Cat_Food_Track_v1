@@ -85,6 +85,15 @@ body {
   border-radius: 999px;
   border: 1px solid #e4d3c3;
 }
+.alert-banner {
+  margin-top: 0.8rem;
+  padding: 0.8rem 1rem;
+  border-radius: 16px;
+  border: 1px solid #f0c5c5;
+  background: #fdeeee;
+  color: #7b2d2d;
+  box-shadow: var(--shadow);
+}
 .panel {
   margin-top: 1rem;
   padding: 1rem;
